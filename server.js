@@ -20,10 +20,19 @@ app.get('/api/tasks', (req, res) => {
 
 // POST create task
 app.post('/api/tasks', (req, res) => {
-    const { title, description, priority } = req.body;
+    const { title, description, priority, link, assignees } = req.body;
+    // store assignees as JSON text (if array provided)
+    let assigneesText = null;
+    try {
+        if (Array.isArray(assignees)) assigneesText = JSON.stringify(assignees);
+        else if (typeof assignees === 'string' && assignees.trim() !== '') assigneesText = assignees;
+    } catch (e) {
+        assigneesText = null;
+    }
+
     db.run(
-        'INSERT INTO tasks (title, description, priority) VALUES (?, ?, ?)',
-        [title, description, priority],
+        'INSERT INTO tasks (title, description, priority, link, assignees) VALUES (?, ?, ?, ?, ?)',
+        [title, description, priority, link || null, assigneesText],
         function(err) {
             if (err) {
                 res.status(500).json({ error: err.message });

@@ -16,6 +16,9 @@
             <p class="subtitle">Monolithic Architecture Demo - Week 3</p>
         </header>
 
+            <div id="searchWrap">
+                <input id="taskSearch" placeholder="Search tasks... (press / to focus)" />
+            </div>
         <!-- ========================================
              ADD TASK FORM SECTION
              ======================================== -->
@@ -43,6 +46,16 @@
                         placeholder="Enter task description"
                         rows="3"
                     ></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="taskLink">Link (optional)</label>
+                    <input type="url" id="taskLink" placeholder="https://example.com or paste a link" />
+                </div>
+
+                <div class="form-group">
+                    <label for="taskAssignees">Assignees (comma-separated)</label>
+                    <input type="text" id="taskAssignees" placeholder="e.g. alice,bob,carol" />
                 </div>
 
                 <div class="form-group">

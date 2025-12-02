@@ -11,6 +11,8 @@ CREATE TABLE tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     description TEXT,
+    link TEXT,
+    assignees TEXT,
     status TEXT NOT NULL DEFAULT 'TODO',
     priority TEXT DEFAULT 'MEDIUM',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

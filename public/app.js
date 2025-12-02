@@ -1,11 +1,14 @@
 // ---- State + DOM refs ----
 let allTasks = [];
+let currentSearch = '';
 
 const addTaskForm = document.getElementById('addTaskForm');
 const titleInput = document.getElementById('taskTitle');
 const descInput = document.getElementById('taskDescription');
 const prioritySelect = document.getElementById('taskPriority');
 const statusFilter = document.getElementById('statusFilter');
+const linkInput = document.getElementById('taskLink');
+const assigneesInput = document.getElementById('taskAssignees');
 
 const todoTasks = document.getElementById('todoTasks');
 const progressTasks = document.getElementById('progressTasks');
@@ -57,6 +60,9 @@ function setTaskReady(id, ready) {
     }
 }
 
+let _lastReadyToastAt = 0;
+let _readyAlertShown = false;
+
 function renderReadyIndicator() {
     const header = document.querySelector('header');
     if (!header) return;
@@ -82,8 +88,37 @@ function renderReadyIndicator() {
 
     // notify when all in-progress tasks are ready
     if (inprog.length > 0 && readyCount === inprog.length) {
-        showToast('ทุกงานใน In Progress พร้อมส่งแล้ว 🎉');
+        const now = Date.now();
+        if (now - _lastReadyToastAt > 10000) {
+            _lastReadyToastAt = now;
+            showToast('ทุกงานใน In Progress พร้อมส่งแล้ว 🎉');
+        }
     }
+}
+
+function renderHeaderSummary() {
+    const header = document.querySelector('header');
+    if (!header) return;
+    let summary = document.getElementById('headerSummary');
+    const counts = {
+        TODO: allTasks.filter(t => t.status === 'TODO').length,
+        IN_PROGRESS: allTasks.filter(t => t.status === 'IN_PROGRESS').length,
+        DONE: allTasks.filter(t => t.status === 'DONE').length
+    };
+    if (!summary) {
+        summary = document.createElement('div');
+        summary.id = 'headerSummary';
+        summary.style.marginTop = '12px';
+        summary.style.display = 'flex';
+        summary.style.gap = '12px';
+        summary.style.justifyContent = 'center';
+        header.appendChild(summary);
+    }
+    summary.innerHTML = `
+        <div class="hdr-badge hdr-todo">📝 ${counts.TODO}</div>
+        <div class="hdr-badge hdr-progress">🔄 ${counts.IN_PROGRESS}</div>
+        <div class="hdr-badge hdr-done">✅ ${counts.DONE}</div>
+    `;
 }
 
 function showToast(message, timeout = 4000) {
@@ -164,15 +199,46 @@ function renderTasks() {
     clearChildren(progressTasks);
     clearChildren(doneTasks);
 
-    const filtered = allTasks.filter(t => filter === 'ALL' ? true : t.status === filter);
+    const searchTerm = currentSearch ? currentSearch.trim().toLowerCase() : '';
+    const filtered = allTasks.filter(t => {
+        const statusMatch = filter === 'ALL' ? true : t.status === filter;
+        if (!statusMatch) return false;
+        if (!searchTerm) return true;
+        const inTitle = t.title && t.title.toLowerCase().includes(searchTerm);
+        const inDesc = t.description && t.description.toLowerCase().includes(searchTerm);
+        return inTitle || inDesc;
+    });
 
     const todo = filtered.filter(t => t.status === 'TODO');
     const inprog = filtered.filter(t => t.status === 'IN_PROGRESS');
     const done = filtered.filter(t => t.status === 'DONE');
 
-    todo.forEach(t => todoTasks.appendChild(createTaskCard(t)));
-    inprog.forEach(t => progressTasks.appendChild(createTaskCard(t)));
-    done.forEach(t => doneTasks.appendChild(createTaskCard(t)));
+    if (todo.length === 0) {
+        const ph = document.createElement('div');
+        ph.className = 'empty-placeholder';
+        ph.textContent = searchTerm ? 'ไม่มีงานที่ตรงกับการค้นหาใน To Do' : 'ไม่มีงานใน To Do';
+        todoTasks.appendChild(ph);
+    } else {
+        todo.forEach(t => todoTasks.appendChild(createTaskCard(t)));
+    }
+
+    if (inprog.length === 0) {
+        const ph = document.createElement('div');
+        ph.className = 'empty-placeholder';
+        ph.textContent = searchTerm ? 'ไม่มีงานที่ตรงกับการค้นหาใน In Progress' : 'ไม่มีงานใน In Progress';
+        progressTasks.appendChild(ph);
+    } else {
+        inprog.forEach(t => progressTasks.appendChild(createTaskCard(t)));
+    }
+
+    if (done.length === 0) {
+        const ph = document.createElement('div');
+        ph.className = 'empty-placeholder';
+        ph.textContent = searchTerm ? 'ไม่มีงานที่ตรงกับการค้นหาใน Done' : 'ไม่มีงานใน Done';
+        doneTasks.appendChild(ph);
+    } else {
+        done.forEach(t => doneTasks.appendChild(createTaskCard(t)));
+    }
 
     todoCount.textContent = todo.length;
     progressCount.textContent = inprog.length;
@@ -182,6 +248,8 @@ function renderTasks() {
     setupDragAndDrop();
     // Update ready indicator after rendering tasks
     renderReadyIndicator();
+    // Update header summary badges
+    renderHeaderSummary();
 }
 
 function createTaskCard(task) {
@@ -189,6 +257,11 @@ function createTaskCard(task) {
     card.className = 'task-card';
     card.draggable = true;
     card.dataset.taskId = task.id;
+    // If task is DONE, lock interactions and prevent dragging
+    if (task.status === 'DONE') {
+        card.draggable = false;
+        card.classList.add('done-locked');
+    }
 
     const title = document.createElement('div');
     title.className = 'task-header';
@@ -201,12 +274,58 @@ function createTaskCard(task) {
     desc.className = 'task-description';
     desc.textContent = task.description || '';
 
+    // Link display
+    if (task.link) {
+        const linkEl = document.createElement('div');
+        linkEl.className = 'task-link';
+        const a = document.createElement('a');
+        a.href = task.link;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = task.link;
+        linkEl.appendChild(a);
+        card.appendChild(linkEl);
+    }
+
     const meta = document.createElement('div');
     meta.className = 'task-meta';
     meta.textContent = `Created: ${formatDate(task.created_at)}`;
 
     const actions = document.createElement('div');
     actions.className = 'task-actions';
+
+    // Assignees display (show initials)
+    if (task.assignees) {
+        const assWrap = document.createElement('div');
+        assWrap.className = 'assignees-wrap';
+        assWrap.style.display = 'flex';
+        assWrap.style.gap = '6px';
+        assWrap.style.alignItems = 'center';
+        try {
+            let list = task.assignees;
+            if (typeof list === 'string') {
+                // try parse JSON
+                try { list = JSON.parse(list); } catch (e) { list = list.split(',').map(s=>s.trim()).filter(Boolean); }
+            }
+            (list || []).slice(0,5).forEach(name => {
+                const av = document.createElement('div');
+                av.className = 'assignee-avatar';
+                av.textContent = String(name).trim().split(' ').map(s=>s[0]||'')[0].toUpperCase();
+                av.title = name;
+                assWrap.appendChild(av);
+            });
+            if ((Array.isArray(list) && list.length > 5) || (typeof list === 'string' && list.split(',').length > 5)) {
+                const more = document.createElement('div');
+                more.className = 'assignee-more';
+                more.textContent = `+${(Array.isArray(list)?list.length: (String(list).split(',').length)) - 5}`;
+                assWrap.appendChild(more);
+            }
+            // insert assignees before actions
+            card.insertBefore(assWrap, actions);
+        } catch (e) {
+            // ignore
+        }
+    }
 
     // Status button
     if (task.status === 'TODO') {
@@ -229,6 +348,14 @@ function createTaskCard(task) {
         readyCheckbox.onchange = (e) => {
             setTaskReady(task.id, e.target.checked);
             renderReadyIndicator();
+            // Toggle Done button in the same actions area
+            try {
+                const parent = readyWrap.parentElement || actions;
+                const doneBtn = parent.querySelector('button.btn-success');
+                if (doneBtn) doneBtn.disabled = !e.target.checked;
+            } catch (er) {
+                // ignore
+            }
         };
 
         const readyLabel = document.createElement('label');
@@ -244,7 +371,12 @@ function createTaskCard(task) {
         const btn = document.createElement('button');
         btn.className = 'btn btn-success btn-sm';
         btn.textContent = '→ Done';
-        btn.onclick = () => window.updateTaskStatus(task.id, 'DONE');
+        if (isTaskReady(task.id)) {
+            btn.onclick = () => window.updateTaskStatus(task.id, 'DONE');
+        } else {
+            btn.disabled = true;
+            btn.title = 'กด "พร้อมส่ง" ก่อนจึงจะทำเครื่องหมายเป็น Done';
+        }
         actions.appendChild(btn);
     }
 
@@ -269,6 +401,13 @@ function createTaskCard(task) {
 
     card.addEventListener('dragend', () => {
         card.classList.remove('dragging');
+    });
+
+    // Click to open task details modal (ignore clicks on buttons/inputs)
+    card.addEventListener('click', (e) => {
+        const target = e.target;
+        if (target.closest('button') || target.closest('input') || target.closest('a')) return;
+        openTaskModal(task);
     });
 
     return card;
@@ -299,8 +438,21 @@ function setupDragAndDrop() {
             column.classList.remove('drag-over');
             const taskId = e.dataTransfer.getData('taskId');
             const newStatus = statusMap[column.id];
-
             if (taskId && newStatus) {
+                // Prevent moving tasks that are already DONE
+                const taskObj = allTasks.find(t => String(t.id) === String(taskId));
+                if (taskObj && taskObj.status === 'DONE') {
+                    alert('ไม่สามารถย้ายงานที่เป็น DONE ได้');
+                    return;
+                }
+                // If moving IN_PROGRESS task to DONE, require ready flag
+                if (taskObj && taskObj.status === 'IN_PROGRESS' && newStatus === 'DONE' && !isTaskReady(taskId)) {
+                    if (!_readyAlertShown) {
+                        alert('กด "พร้อมส่ง" ก่อนจึงจะสามารถย้ายงานไปยัง Done ได้');
+                        _readyAlertShown = true;
+                    }
+                    return;
+                }
                 try {
                     showLoading();
                     await updateTaskStatusAPI(taskId, newStatus);
@@ -316,6 +468,59 @@ function setupDragAndDrop() {
     });
 }
 
+// ---- Modal (Task Details) ----
+function openTaskModal(task) {
+    closeTaskModal();
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'taskModalOverlay';
+
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+
+    const header = document.createElement('div');
+    header.className = 'modal-header';
+    header.innerHTML = `<h3>${escapeHtml(task.title)}</h3>`;
+
+    const body = document.createElement('div');
+    body.className = 'modal-body';
+    body.innerHTML = `
+        <p><strong>คำอธิบาย:</strong></p>
+        <p>${escapeHtml(task.description || '')}</p>
+        <p><strong>สถานะ:</strong> ${escapeHtml(task.status)}</p>
+        <p><strong>ความสำคัญ:</strong> ${escapeHtml(task.priority || 'MEDIUM')}</p>
+        <p><strong>สร้างเมื่อ:</strong> ${escapeHtml(task.created_at || '')}</p>
+        <p><strong>อัปเดต:</strong> ${escapeHtml(task.updated_at || '')}</p>
+        ${task.link ? `<p><strong>Link:</strong> <a href="${escapeHtml(task.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(task.link)}</a></p>` : ''}
+        ${task.assignees ? `<p><strong>Assignees:</strong> ${escapeHtml(Array.isArray(task.assignees)?task.assignees.join(', '): task.assignees)}</p>` : ''}
+    `;
+
+    const actions = document.createElement('div');
+    actions.className = 'modal-actions';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'btn btn-secondary';
+    closeBtn.textContent = 'ปิด';
+    closeBtn.onclick = closeTaskModal;
+    actions.appendChild(closeBtn);
+
+    modal.appendChild(header);
+    modal.appendChild(body);
+    modal.appendChild(actions);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // click outside to close
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeTaskModal();
+    });
+}
+
+function closeTaskModal() {
+    const existing = document.getElementById('taskModalOverlay');
+    if (existing) existing.remove();
+}
+
 // ---- Event handlers ----
 if (addTaskForm) {
     addTaskForm.addEventListener('submit', async (e) => {
@@ -327,6 +532,12 @@ if (addTaskForm) {
             description: descInput.value.trim(),
             priority: prioritySelect.value
         };
+            // optional link + assignees
+            if (linkInput && linkInput.value.trim()) payload.link = linkInput.value.trim();
+            if (assigneesInput && assigneesInput.value.trim()) {
+                // store as array by splitting commas and trimming
+                payload.assignees = assigneesInput.value.split(',').map(s => s.trim()).filter(Boolean);
+            }
         try {
             showLoading();
             await createTaskAPI(payload);
@@ -348,9 +559,16 @@ if (statusFilter) {
 // Expose global helpers for inline onclicks
 window.updateTaskStatus = async function(id, status) {
     try {
+        // If moving into IN_PROGRESS or DONE, ensure ready flag is reset appropriately
+        if (status === 'IN_PROGRESS' || status === 'DONE') setTaskReady(id, false);
+
         showLoading();
         await updateTaskStatusAPI(id, status);
         await fetchTasks();
+
+        // After reloading tasks, purge any ready flags that belong to non-IN_PROGRESS tasks
+        purgeReadyFlags();
+        renderTasks();
     } catch (err) {
         console.error(err);
         alert('Failed to update status');
@@ -358,6 +576,18 @@ window.updateTaskStatus = async function(id, status) {
         hideLoading();
     }
 };
+
+function purgeReadyFlags() {
+    try {
+        allTasks.forEach(t => {
+            if (t.status !== 'IN_PROGRESS' && isTaskReady(t.id)) {
+                setTaskReady(t.id, false);
+            }
+        });
+    } catch (e) {
+        console.warn('Error purging ready flags', e);
+    }
+}
 
 window.deleteTask = async function(id) {
     if (!confirm('Delete this task?')) return;
@@ -377,4 +607,23 @@ window.deleteTask = async function(id) {
 document.addEventListener('DOMContentLoaded', () => {
     fetchTasks();
     setupDragAndDrop();
+
+    // Search input wiring
+    const searchInput = document.getElementById('taskSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            currentSearch = e.target.value || '';
+            renderTasks();
+        });
+    }
+
+    // Keyboard shortcut: press '/' to focus search
+    document.addEventListener('keydown', (e) => {
+        const active = document.activeElement;
+        const isTyping = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+        if (e.key === '/' && !isTyping) {
+            e.preventDefault();
+            if (searchInput) searchInput.focus();
+        }
+    });
 });
