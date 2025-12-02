@@ -18,6 +18,8 @@ Users สามารถ:
 
 ค้นหาด้วยฟิลเตอร์ Status
 
+```
+
 🧱 Architecture — Monolithic
 ┌─────────────────────────────────────┐
 │   Monolithic Application            │
@@ -35,7 +37,7 @@ Users สามารถ:
 │  │ Database: SQLite               │  │
 │  └───────────────────────────────┘  │
 └─────────────────────────────────────┘
-
+```
 🚀 Tech Stack
 
 Node.js + Express.js — Backend API
@@ -46,6 +48,7 @@ HTML + CSS + Vanilla JS — Frontend UI
 
 Nodemon — Auto-reload server
 
+```
 🗂️ Project Structure
 week3-monolithic/
 ├── server.js
@@ -59,43 +62,47 @@ week3-monolithic/
 │   └── app.js
 ├── .gitignore
 └── README.md
-
+```
 ⚙️ Installation & Setup
 1️⃣ Clone หรือสร้างโฟลเดอร์
+```
 mkdir week3-monolithic && cd week3-monolithic
 npm init -y
-
+```
 2️⃣ Install Dependencies
+```
 npm install express sqlite3
 npm install --save-dev nodemon
-
+```
 3️⃣ สร้างโครงสร้างไฟล์
+```
 mkdir public database
 touch server.js database/schema.sql
 touch public/index.html public/style.css public/app.js
-
+```
 4️⃣ Setup Database
+```
 cd database
 sqlite3 tasks.db < schema.sql
 cd ..
-
+```
 5️⃣ Run Server
 
 เพิ่ม script ใน package.json
-
+```
 "scripts": {
     "dev": "nodemon server.js"
 }
-
+```
 
 รันเลย
-
+```
 npm run dev
-
+```
 
 เปิดเว็บ
 👉 http://localhost:3000
-
+```
 🧩 Database Schema
 CREATE TABLE tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -106,8 +113,9 @@ CREATE TABLE tasks (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
-
+```
 🔌 API Endpoints
+```
 Method	Endpoint	Description
 GET	/api/tasks	Get all tasks
 GET	/api/tasks/:id	Get single task
@@ -115,6 +123,7 @@ POST	/api/tasks	Create task
 PUT	/api/tasks/:id	Update task
 DELETE	/api/tasks/:id	Delete task
 PATCH	/api/tasks/:id/status	Update only status
+```
 🧪 Testing Guide
 Test ด้วย Browser / Thunder Client / Postman
 
@@ -124,13 +133,13 @@ GET http://localhost:3000/api/tasks
 เพิ่มงานใหม่:
 POST http://localhost:3000/api/tasks
 Body:
-
+```
 {
   "title": "New Task",
   "description": "Details",
   "priority": "HIGH"
 }
-
+```
 
 ตรวจสอบ UI:
 
@@ -141,3 +150,4 @@ Body:
 ย้าย status
 
 Filter tasks
+
